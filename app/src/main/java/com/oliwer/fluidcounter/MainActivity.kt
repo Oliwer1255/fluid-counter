@@ -1,5 +1,7 @@
 package com.oliwer.fluidcounter
 
+import android.app.Activity.MODE_PRIVATE
+import android.content.Context
 import android.icu.util.Calendar
 import android.os.Bundle
 import android.text.format.DateUtils
@@ -29,10 +31,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.gson.Gson
 import com.oliwer.fluidcounter.ui.theme.FluidCounterTheme
+import java.io.IOException
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,7 +50,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+
 }
+
+
 
 @Preview
 @Composable
@@ -61,8 +71,14 @@ fun MyApp (modifier: Modifier = Modifier) {
         mutableStateOf(Calendar.getInstance().getTime())
     }
     */
+    val context = LocalContext.current
+    var currentFluidCount = 0
+    if(!LocalInspectionMode.current) {
+        val loadedCounter = LoadJson(context)
+        currentFluidCount = loadedCounter.count
+    }
     var fluidCount by rememberSaveable {
-        mutableStateOf(0)
+        mutableStateOf(currentFluidCount)
     }
 
     /*
@@ -77,8 +93,14 @@ fun MyApp (modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(30.dp))
             Row {
                 FluidButtons(
-                    onAddedFluidClick = { fluidAmount -> fluidCount += fluidAmount },
-                    onResetClick = { fluidCount = 0 }
+                    onAddedFluidClick = {
+                        fluidAmount -> fluidCount += fluidAmount
+                        SaveJson(Counter(fluidCount), context)
+                                        },
+                    onResetClick = {
+                        fluidCount = 0
+                        SaveJson(Counter(fluidCount), context)
+                    }
                 )
                 FluidBar(fluidCount)
                 FluidMeasures()
@@ -210,3 +232,35 @@ fun FluidMeasures(modifier: Modifier = Modifier) {
         )
     }
 }
+
+fun SaveJson(counter: Counter, context: Context){
+    var gson = Gson()
+    var jsonString = gson.toJson(counter)
+
+    try {
+        context.openFileOutput("Counter.txt", MODE_PRIVATE).bufferedWriter().use { writer ->
+            writer.write(jsonString)
+        }
+    } catch(e: IOException) {
+        e.printStackTrace()
+    }
+}
+
+fun LoadJson(context: Context): Counter {
+    var gson = Gson()
+
+    try {
+        context.openFileInput("Counter.txt").bufferedReader().use { reader ->
+            val jsonString = reader.readText()
+            return gson.fromJson(jsonString, Counter::class.java)
+        }
+    } catch(e: IOException) {
+        e.printStackTrace()
+        return Counter(0)
+    }
+}
+
+data class Counter(
+    var count: Int
+)
+
